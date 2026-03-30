@@ -1,0 +1,21 @@
+experiment:
+  name: pneumonia-stylegan2ada-256
+  outdir: training-runs
+
+stylegan:
+  repo_dir: third_party/stylegan2-ada-pytorch
+  cfg: auto
+  data: datasets/pneumonia_256_conditional.zip
+  gpus: 1
+  batch: 16
+  gamma: 2.0
+  mirror: false
+  kimg: 8000
+  snap: 10
+  metrics:
+    - fid50k_full
+  aug: ada
+  target: 0.6
+  cond: true
+  workers: 3
+  seed: 42

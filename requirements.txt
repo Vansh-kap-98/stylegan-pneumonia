@@ -1,0 +1,9 @@
+click==8.1.7
+tqdm==4.66.5
+requests==2.32.3
+pyspng==0.1.2
+Pillow==10.4.0
+PyYAML==6.0.2
+numpy==1.24.4
+ninja==1.11.1.1
+scipy==1.9.3

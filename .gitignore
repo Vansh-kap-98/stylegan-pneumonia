@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Data and outputs
+data/raw/
+data/processed/
+datasets/
+training-runs/
+outputs/
+checkpoints/
+
+# System
+.DS_Store
+Thumbs.db
