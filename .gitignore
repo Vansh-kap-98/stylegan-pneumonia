@@ -14,6 +14,9 @@ training-runs/
 outputs/
 checkpoints/
 
+# External dependencies
+third_party/
+
 # System
 .DS_Store
 Thumbs.db
