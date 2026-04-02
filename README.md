@@ -45,14 +45,13 @@ $env:STYLEGAN_DISABLE_CUSTOM_OPS="1"
 
 These patches enable stable training without custom CUDA plugin builds, trading ~3× throughput for platform compatibility.
 
-## Current Project Status (March 30, 2026)
+## Current Project Status (April 2, 2026)
 
-- Training reached **kimg 100** successfully.
-- Final completed run directory:
-  - `training-runs/00011-pneumonia_256_conditional-cond-auto1-gamma2-kimg100-batch4-ada-target0.6-resumecustom`
-- Final checkpoint:
-  - `training-runs/00011-pneumonia_256_conditional-cond-auto1-gamma2-kimg100-batch4-ada-target0.6-resumecustom/network-snapshot-000100.pkl`
-- Training completed cleanly after tick 25 with `Exiting...` signal.
+- Training to **kimg 400** completed successfully.
+- Best quantitative checkpoint identified at **kimg 200**.
+- Additional boundary testing at **kimg 220** confirms the post-200 plateau/degradation onset.
+- Final selected research baseline checkpoint:
+  - `training-runs/00013-pneumonia_256_conditional-cond-auto1-gamma2-kimg200-batch4-ada-target0.6-resumecustom/network-snapshot-000200.pkl`
 
 ## 3. Training Configuration & Progress
 
@@ -86,7 +85,9 @@ Main flags used for kimg 100 run:
 | 00008 | 50 | Completed | Resume from 00007; quality improving |
 | 00009 | 100 | Interrupted | Aborted at tick 11 (kimg 44) by user |
 | 00010 | 100 | Aborted | Test resume; created new run 00011 instead |
-| 00011 | 100 | **Completed** | Final production run; all checkpoints saved |
+| 00011 | 100 | **Completed** | First production milestone |
+| 00013 | 200 | **Completed** | Best checkpoint identified here |
+| 00014 | 400 | **Completed** | Used for post-200 degradation analysis |
 
 ### Dataset and Labels
 
@@ -98,6 +99,28 @@ Main flags used for kimg 100 run:
 - **Preprocessing**: Lanczos resampling, no horizontal flip
 
 ## 4. Evaluation Outcomes
+
+### Metrics Used and Extended Metrics Set
+
+This project currently uses:
+
+- **FID (`fid50k_full`)**: Primary distribution-level quality metric between generated and real images (lower is better).
+- **KID (`kid50k_full`)**: Kernel-based distance alternative to FID, often more stable with smaller datasets (lower is better).
+
+For publication-strength evaluation, include the following additional metrics:
+
+- **Precision / Recall for GANs**: Separates fidelity (precision) from diversity (recall).
+- **Density / Coverage**: Complements precision/recall for manifold overlap analysis.
+- **Class-conditional consistency**: External pneumonia classifier agreement with conditioning label.
+- **Diversity score (LPIPS-based intra-class diversity)**: Detects mode collapse within each class.
+- **Nearest-neighbor leakage check**: Confirms generated images are not near-duplicates of training images.
+- **Downstream utility delta**: Change in classifier performance when training with real-only vs real+synthetic data.
+
+Recommended reporting convention:
+
+- Report mean and standard deviation across at least 3 runs/seeds where possible.
+- Keep sample counts and class balance fixed across checkpoints/models for fair comparison.
+- Treat FID/KID as necessary but not sufficient; pair them with diversity and leakage analyses.
 
 ### First Quantitative Results (Snapshot 000100)
 
@@ -253,23 +276,29 @@ Repeat for alternative snapshots (000080, 000060) using identical settings for f
 3. **Leakage check**: Verify generated images are not near-duplicates of training data
 4. **Decision rule**: If kimg 100 shows only marginal metric improvement but worse visual quality, prefer earlier checkpoint (kimg 80 or 60)
 
-## 8. First Testing Outcomes (Snapshot 000100)
+## 8. Final Testing Outcomes and Checkpoint Selection
 
-Date recorded: March 30, 2026
+Date recorded: April 2, 2026
 
-**Quantitative Results:**
-- `fid50k_full = 133.3156`
-- `kid50k_full = 0.1831`
+**Quantitative Results (FID/KID):**
 
-**Interpretation:**
-- Valid baseline indicating a quality gap to real X-ray distribution
-- Does not confirm overfitting without additional checks (leakage test, downstream task evaluation)
-- Comparison against earlier snapshots (000080, 000060) needed to finalize checkpoint selection
+| Snapshot | kimg | FID | KID | Note |
+|----------|------|-----|-----|------|
+| 000080 | 80 | 159.0 | - | Early baseline |
+| 000100 | 100 | 133.3156 | 0.1831 | Improved vs 80 |
+| 000200 | 200 | 109.9 | 0.14 | **Best overall** |
+| 000220 | 220 | 110.0 | - | Essentially tied with 200, slightly worse |
+| 000240 | 240 | 152.0 | - | Clear degradation onset |
+| 000300 | 300 | 337.0 | - | Overtraining collapse |
+| 000400 | 400 | 407.0 | - | Severe collapse |
 
-**Next Steps:**
-1. Evaluate snapshots 000080 and 000060 with identical protocol
-2. Visual inspection and leakage checks for all candidates
-3. Selected checkpoint will serve as baseline for StyleGAN2-ADA vs cGAN comparison study
+**Final Selection for Research:**
+- **Chosen checkpoint: snapshot 000200 (kimg 200)**
+- Rationale: lowest measured FID, strong KID, and better compute efficiency than extending further training.
+- Practical conclusion: quality improves up to ~200 kimg and degrades rapidly after ~220-240 kimg for this setup.
+
+**Usage for comparison study:**
+- Use snapshot 000200 as the primary StyleGAN2-ADA result when comparing against cGAN baselines under the same protocol.
 
 ## 9. Future Work
 
@@ -312,6 +341,6 @@ And cite StyleGAN2-ADA:
 
 ---
 
-**Last Updated**: March 30, 2026  
-**Status**: Training complete (kimg 100); initial metrics collected; checkpoint selection pending.  
+**Last Updated**: April 2, 2026  
+**Status**: Training/evaluation complete; checkpoint selection finalized at kimg 200 for research baseline.  
 **Contact**: For questions or reproducibility issues, please file an issue or contact the maintainer.
