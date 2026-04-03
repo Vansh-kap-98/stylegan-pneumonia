@@ -53,6 +53,20 @@ These patches enable stable training without custom CUDA plugin builds, trading 
 - Final selected research baseline checkpoint:
   - `training-runs/00013-pneumonia_256_conditional-cond-auto1-gamma2-kimg200-batch4-ada-target0.6-resumecustom/network-snapshot-000200.pkl`
 
+  ### Updated Research Baseline (Run 00017, Gamma 8)
+
+  The optimized retraining run produced a much stronger snapshot 200:
+
+  - `training-runs/00017-pneumonia_256_conditional-cond-auto1-gamma8-kimg300-batch4-ada-target0.7/network-snapshot-000200.pkl`
+
+  **Measured scores:**
+  - FID: 54.0
+  - KID: 0.06
+  - Precision: 0.2284
+  - Recall: 0.00038
+
+  This becomes the preferred StyleGAN baseline for the final comparison because it improves FID, KID, and precision over the earlier gamma 2 run.
+
 ## 3. Training Configuration & Progress
 
 ### Training Hyperparameters
@@ -276,9 +290,116 @@ Repeat for alternative snapshots (000080, 000060) using identical settings for f
 3. **Leakage check**: Verify generated images are not near-duplicates of training data
 4. **Decision rule**: If kimg 100 shows only marginal metric improvement but worse visual quality, prefer earlier checkpoint (kimg 80 or 60)
 
+### Reviewer Evaluation Suite (Snapshot 000200)
+
+To satisfy reviewer requests, run the following suite for the selected StyleGAN snapshot:
+
+`training-runs/00013-pneumonia_256_conditional-cond-auto1-gamma2-kimg200-batch4-ada-target0.6-resumecustom/network-snapshot-000200.pkl`
+
+#### 1) FID and KID (StyleGAN, official)
+
+```powershell
+$env:STYLEGAN_DISABLE_CUSTOM_OPS="1"
+
+.\.venv\Scripts\python.exe third_party\stylegan2-ada-pytorch\calc_metrics.py `
+  --metrics=fid50k_full,kid50k_full `
+  --data=datasets/pneumonia_256_conditional.zip `
+  --network=training-runs/00013-pneumonia_256_conditional-cond-auto1-gamma2-kimg200-batch4-ada-target0.6-resumecustom/network-snapshot-000200.pkl
+```
+
+#### 2) Precision and Recall for GANs (StyleGAN, official)
+
+```powershell
+$env:STYLEGAN_DISABLE_CUSTOM_OPS="1"
+
+.\.venv\Scripts\python.exe third_party\stylegan2-ada-pytorch\calc_metrics.py `
+  --metrics=pr50k3_full `
+  --data=datasets/pneumonia_256_conditional.zip `
+  --network=training-runs/00013-pneumonia_256_conditional-cond-auto1-gamma2-kimg200-batch4-ada-target0.6-resumecustom/network-snapshot-000200.pkl
+```
+
+#### 3) SSIM (class-matched real vs synthetic)
+
+First generate synthetic images from snapshot 200:
+
+```powershell
+$env:STYLEGAN_DISABLE_CUSTOM_OPS="1"
+
+# Normal class
+.\.venv\Scripts\python.exe third_party\stylegan2-ada-pytorch\generate.py `
+  --network=training-runs/00013-pneumonia_256_conditional-cond-auto1-gamma2-kimg200-batch4-ada-target0.6-resumecustom/network-snapshot-000200.pkl `
+  --seeds=0-511 --class=0 `
+  --outdir=outputs/snapshot200/class0
+
+# Pneumonia class
+.\.venv\Scripts\python.exe third_party\stylegan2-ada-pytorch\generate.py `
+  --network=training-runs/00013-pneumonia_256_conditional-cond-auto1-gamma2-kimg200-batch4-ada-target0.6-resumecustom/network-snapshot-000200.pkl `
+  --seeds=512-1023 --class=1 `
+  --outdir=outputs/snapshot200/class1
+```
+
+Then compute SSIM:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/eval_ssim_pairs.py `
+  --real-zip datasets/pneumonia_256_conditional.zip `
+  --synthetic-normal-dir outputs/snapshot200/class0 `
+  --synthetic-pneumonia-dir outputs/snapshot200/class1 `
+  --max-pairs 256
+```
+
+#### 4) VGG16 downstream accuracy at 256x256 with 50/50 real-synthetic train mix
+
+Prepare synthetic classifier folders (same layout as real):
+
+```text
+outputs/snapshot200/for_classifier/
+  0_normal/
+  1_pneumonia/
+```
+
+Run:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/train_vgg16_real_synth_split.py `
+  --real-root data/processed/mendeley_256 `
+  --synth-root outputs/snapshot200/for_classifier `
+  --epochs 10 --batch-size 32
+```
+
+Report the held-out real test accuracy against prior 92.43% baseline.
+
+#### 5) Visual Turing Test (radiologist review packet)
+
+Build a blinded CSV packet for independent reviewers:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/build_visual_turing_packet.py `
+  --real-normal-dir data/processed/mendeley_256/0_normal `
+  --real-pneumonia-dir data/processed/mendeley_256/1_pneumonia `
+  --synth-normal-dir outputs/snapshot200/class0 `
+  --synth-pneumonia-dir outputs/snapshot200/class1 `
+  --n-per-group 100 `
+  --outdir outputs/visual_turing_snapshot200
+```
+
+Outputs:
+- `outputs/visual_turing_snapshot200/blinded_review.csv` (send to radiologists)
+- `outputs/visual_turing_snapshot200/answer_key.csv` (keep hidden)
+
+#### 6) cGAN comparison requirement
+
+Run the same evaluation protocol for cGAN outputs/checkpoints and report both models side-by-side:
+
+- FID (same reference real dataset and sample count)
+- SSIM (same pairing strategy and max pairs)
+- Precision/Recall (same feature extractor and settings)
+- VGG16 downstream accuracy (same split policy)
+- Visual Turing pass rate (same reviewer packet size and review instructions)
+
 ## 8. Final Testing Outcomes and Checkpoint Selection
 
-Date recorded: April 2, 2026
+Date recorded: April 3, 2026
 
 **Quantitative Results (FID/KID):**
 
@@ -286,19 +407,97 @@ Date recorded: April 2, 2026
 |----------|------|-----|-----|------|
 | 000080 | 80 | 159.0 | - | Early baseline |
 | 000100 | 100 | 133.3156 | 0.1831 | Improved vs 80 |
-| 000200 | 200 | 109.9 | 0.14 | **Best overall** |
-| 000220 | 220 | 110.0 | - | Essentially tied with 200, slightly worse |
+| 000200 | 200 | 109.9 | 0.14 | Older baseline |
+| 000220 | 220 | 110.3611 | - | Essentially tied with 200, slightly worse |
 | 000240 | 240 | 152.0 | - | Clear degradation onset |
 | 000300 | 300 | 337.0 | - | Overtraining collapse |
 | 000400 | 400 | 407.0 | - | Severe collapse |
 
+| 000200 (gamma 8) | 200 | 54.0 | 0.06 | **New best overall** |
+
+**Precision/Recall for GANs (snapshot 000200):**
+
+| Metric | Value |
+|--------|-------|
+| pr50k3_full_precision | 0.2284 |
+| pr50k3_full_recall | 0.00038 |
+
+Interpretation for reviewer context:
+- Precision is low and recall is zero under `pr50k3_full`, indicating very limited manifold coverage at this checkpoint under the current feature-space thresholding.
+- This directly supports the need for additional evidence beyond FID/KID (SSIM, downstream VGG16, and radiologist Turing test) before claiming strong distribution coverage.
+
+**SSIM evaluation (gamma 8, snapshot 000200):**
+
+| Class | Mean SSIM | Std | n |
+|-------|-----------|-----|---|
+| Normal | 0.3145 | 0.0481 | 256 |
+| Pneumonia | 0.3768 | 0.0700 | 256 |
+| Overall | 0.3456 | 0.0676 | 512 |
+
+Interpretation:
+- Pneumonia samples show slightly stronger structural similarity than Normal samples.
+- SSIM is moderate overall, which is consistent with improved realism but still leaves room for downstream validation.
+
+**VGG16 downstream evaluation (50/50 real-synthetic train mix, held-out real test):**
+
+- Test accuracy: **98.09%**
+
+Confusion matrix:
+
+| True\\Pred | Normal | Pneumonia |
+|-----------|--------|-----------|
+| Normal | 261 | 9 |
+| Pneumonia | 11 | 766 |
+
+Classification summary:
+
+| Class | Precision | Recall | F1-score | Support |
+|-------|-----------|--------|----------|---------|
+| Normal | 0.9596 | 0.9667 | 0.9631 | 270 |
+| Pneumonia | 0.9884 | 0.9858 | 0.9871 | 777 |
+| Accuracy | - | - | 0.9809 | 1047 |
+| Macro avg | 0.9740 | 0.9763 | 0.9751 | 1047 |
+| Weighted avg | 0.9810 | 0.9809 | 0.9809 | 1047 |
+
+Interpretation:
+- Downstream utility is strong and clearly exceeds the prior 92.43% baseline.
+- This supports the practical usefulness of the improved StyleGAN snapshot for augmentation.
+
 **Final Selection for Research:**
-- **Chosen checkpoint: snapshot 000200 (kimg 200)**
-- Rationale: lowest measured FID, strong KID, and better compute efficiency than extending further training.
-- Practical conclusion: quality improves up to ~200 kimg and degrades rapidly after ~220-240 kimg for this setup.
+- **Chosen checkpoint: snapshot 000200 from run 00017 (gamma 8.0)**
+- Rationale: lowest measured FID, best KID, improved precision versus the gamma 2 baseline, and moderate SSIM.
+- Practical conclusion: the retrained model is the strongest StyleGAN baseline available for the cGAN comparison.
+
+### Optimization Attempt 2: Improved Precision/Recall (April 2, 2026 – Completed)
+
+Initial results showed low precision/recall (0.096/0.0) despite good FID. The retrained gamma-8 run now has stronger quantitative performance:
+
+**New hyperparameters:**
+- `--gamma=8.0` (increased from 2.0 for stronger R1 regularization → better manifold coverage)
+- `--target=0.7` (increased from 0.6 for more augmentation diversity)
+- `--kimg=300` (extended to capture convergence and find optimal plateau)
+- All other settings preserved: batch=4, snap=5, seed=42, mirror=0
+
+**Expected improvements:**
+- Strong gamma encourages generator to explore diverse modes (targeting higher recall).
+- Slightly higher ADA target provides gentler guidance for manifold learning.
+- Dense snapshots (every 20 kimg from 0–300) enable precise checkpoint selection.
+
+**Updated results:**
+- FID 54.0 at snapshot 200
+- KID 0.06 at snapshot 200
+- pr50k3_full precision 0.2284
+- pr50k3_full recall 0.00038
+- SSIM overall 0.3456 (Normal 0.3145, Pneumonia 0.3768)
+- VGG16 held-out real test accuracy 98.09%
+
+**Evaluation plan:**
+- Completed: SSIM and VGG16 on gamma-8 snapshot 200
+- Remaining: Visual Turing test packet review and side-by-side cGAN table finalization
+- Keep the gamma 2 baseline in the table for comparison only
 
 **Usage for comparison study:**
-- Use snapshot 000200 as the primary StyleGAN2-ADA result when comparing against cGAN baselines under the same protocol.
+- Use `run 00017 / snapshot 000200 / gamma 8.0` as the primary StyleGAN2-ADA result when comparing against cGAN baselines under the same protocol.
 
 ## 9. Future Work
 
