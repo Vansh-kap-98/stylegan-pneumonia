@@ -45,27 +45,18 @@ $env:STYLEGAN_DISABLE_CUSTOM_OPS="1"
 
 These patches enable stable training without custom CUDA plugin builds, trading ~3× throughput for platform compatibility.
 
-## Current Project Status (April 2, 2026)
+## Current Project Status (April 4, 2026)
 
-- Training to **kimg 400** completed successfully.
-- Best quantitative checkpoint identified at **kimg 200**.
-- Additional boundary testing at **kimg 220** confirms the post-200 plateau/degradation onset.
-- Final selected research baseline checkpoint:
-  - `training-runs/00013-pneumonia_256_conditional-cond-auto1-gamma2-kimg200-batch4-ada-target0.6-resumecustom/network-snapshot-000200.pkl`
+- Historical baseline run to **kimg 400** completed (run 00014).
+- Updated retraining run 00017 (gamma 8) reached **kimg 300** with:
+  - FID (snapshot 300): **51.7074**
+  - KID (snapshot 300): **0.06121**
+- Latest tuning run 00018 (gamma 6, ADA target 0.65) produced the best checkpoint so far at **kimg 240**:
+  - Checkpoint: `training-runs/00018-pneumonia_256_conditional-cond-auto1-gamma6-kimg300-batch4-ada-target0.65/network-snapshot-000240.pkl`
+  - FID: **25.3038**
+  - KID: **0.02246**
 
-  ### Updated Research Baseline (Run 00017, Gamma 8)
-
-  The optimized retraining run produced a much stronger snapshot 200:
-
-  - `training-runs/00017-pneumonia_256_conditional-cond-auto1-gamma8-kimg300-batch4-ada-target0.7/network-snapshot-000200.pkl`
-
-  **Measured scores:**
-  - FID: 54.0
-  - KID: 0.06
-  - Precision: 0.2284
-  - Recall: 0.00038
-
-  This becomes the preferred StyleGAN baseline for the final comparison because it improves FID, KID, and precision over the earlier gamma 2 run.
+Final selected research checkpoint for downstream comparison is run 00018 snapshot 240.
 
 ## 3. Training Configuration & Progress
 
@@ -102,6 +93,8 @@ Main flags used for kimg 100 run:
 | 00011 | 100 | **Completed** | First production milestone |
 | 00013 | 200 | **Completed** | Best checkpoint identified here |
 | 00014 | 400 | **Completed** | Used for post-200 degradation analysis |
+| 00017 | 300 | **Completed** | Gamma 8 retuning; FID 51.7, KID 0.061 at snapshot 300 |
+| 00018 | 300 | **Completed** | Gamma 6 + ADA 0.65; final selected snapshot 240 (FID 25.3, KID 0.022) |
 
 ### Dataset and Labels
 
@@ -158,6 +151,31 @@ python calc_metrics.py --metrics=fid50k_full,kid50k_full --data=datasets/pneumon
 - These values indicate a valid but weak baseline; the generated distribution shows a significant gap to real X-ray distribution.
 - FID/KID alone do not indicate overfitting—further analysis (leakage checks, visual review, downstream task utility) is required.
 - Next step: Direct comparison against snapshots 000080 and 000060 using identical evaluation protocol.
+
+### Latest Quantitative Results (Run 00018, Snapshot 000240)
+
+**Test date**: April 4, 2026
+
+Checkpoint evaluated:
+- `training-runs/00018-pneumonia_256_conditional-cond-auto1-gamma6-kimg300-batch4-ada-target0.65/network-snapshot-000240.pkl`
+
+**Observed Results:**
+- **FID (Frechet Inception Distance)**: 25.3038
+- **KID (Kernel Inception Distance)**: 0.02246
+- **Precision (`pr50k3_full_precision`)**: 0.48944
+- **Recall (`pr50k3_full_recall`)**: 0.00765
+- **SSIM (Structural Similarity Index)**:
+  - Normal class: 0.3121 ± 0.0483
+  - Pneumonia class: 0.3713 ± 0.0721
+  - Overall: 0.3417 ± 0.0681
+- **VGG16 Downstream Test Accuracy (50/50 real-synthetic train mix)**: 97.99%
+  - Normal (precision/recall): 0.9698 / 0.9519
+  - Pneumonia (precision/recall): 0.9834 / 0.9897
+
+**Interpretation:**
+- This is a major improvement over run 00017 snapshot 300 (FID 51.7074, KID 0.06121).
+- Snapshot 000240 is the strongest checkpoint observed so far in this repository.
+- Precision improved over earlier baselines, while recall remains low and should be treated as a key limitation.
 
 ### Convergence Behavior
 
@@ -399,7 +417,7 @@ Run the same evaluation protocol for cGAN outputs/checkpoints and report both mo
 
 ## 8. Final Testing Outcomes and Checkpoint Selection
 
-Date recorded: April 3, 2026
+Date recorded: April 4, 2026
 
 **Quantitative Results (FID/KID):**
 
@@ -413,60 +431,62 @@ Date recorded: April 3, 2026
 | 000300 | 300 | 337.0 | - | Overtraining collapse |
 | 000400 | 400 | 407.0 | - | Severe collapse |
 
-| 000200 (gamma 8) | 200 | 54.0 | 0.06 | **New best overall** |
+| 000200 (gamma 8) | 200 | 54.0 | 0.06 | Previous best |
+| 000240 (gamma 6, ADA 0.65) | 240 | 25.3038 | 0.02246 | **Final selected checkpoint** |
 
-**Precision/Recall for GANs (snapshot 000200):**
+**Precision/Recall for GANs (snapshot 000240):**
 
 | Metric | Value |
 |--------|-------|
-| pr50k3_full_precision | 0.2284 |
-| pr50k3_full_recall | 0.00038 |
+| pr50k3_full_precision | 0.48944 |
+| pr50k3_full_recall | 0.00765 |
 
 Interpretation for reviewer context:
-- Precision is low and recall is zero under `pr50k3_full`, indicating very limited manifold coverage at this checkpoint under the current feature-space thresholding.
-- This directly supports the need for additional evidence beyond FID/KID (SSIM, downstream VGG16, and radiologist Turing test) before claiming strong distribution coverage.
+- Precision improved substantially over earlier checkpoints, while recall remains low under `pr50k3_full`.
+- This supports selecting snapshot 000240 for strongest fidelity while explicitly reporting limited manifold coverage.
+- Additional evidence (SSIM, downstream VGG16, and radiologist Turing test) remains necessary for comprehensive validation.
 
-**SSIM evaluation (gamma 8, snapshot 000200):**
+**SSIM evaluation (gamma 6, ADA 0.65, snapshot 000240):**
 
 | Class | Mean SSIM | Std | n |
 |-------|-----------|-----|---|
-| Normal | 0.3145 | 0.0481 | 256 |
-| Pneumonia | 0.3768 | 0.0700 | 256 |
-| Overall | 0.3456 | 0.0676 | 512 |
+| Normal | 0.3121 | 0.0483 | 256 |
+| Pneumonia | 0.3713 | 0.0721 | 256 |
+| Overall | 0.3417 | 0.0681 | 512 |
 
 Interpretation:
 - Pneumonia samples show slightly stronger structural similarity than Normal samples.
-- SSIM is moderate overall, which is consistent with improved realism but still leaves room for downstream validation.
+- SSIM remains moderate overall, supporting visual plausibility while still leaving room for diversity-focused improvements.
 
 **VGG16 downstream evaluation (50/50 real-synthetic train mix, held-out real test):**
 
-- Test accuracy: **98.09%**
+- Test accuracy: **97.99%**
 
 Confusion matrix:
 
 | True\\Pred | Normal | Pneumonia |
 |-----------|--------|-----------|
-| Normal | 261 | 9 |
-| Pneumonia | 11 | 766 |
+| Normal | 257 | 13 |
+| Pneumonia | 8 | 769 |
 
 Classification summary:
 
 | Class | Precision | Recall | F1-score | Support |
 |-------|-----------|--------|----------|---------|
-| Normal | 0.9596 | 0.9667 | 0.9631 | 270 |
-| Pneumonia | 0.9884 | 0.9858 | 0.9871 | 777 |
-| Accuracy | - | - | 0.9809 | 1047 |
-| Macro avg | 0.9740 | 0.9763 | 0.9751 | 1047 |
-| Weighted avg | 0.9810 | 0.9809 | 0.9809 | 1047 |
+| Normal | 0.9698 | 0.9519 | 0.9607 | 270 |
+| Pneumonia | 0.9834 | 0.9897 | 0.9865 | 777 |
+| Accuracy | - | - | 0.9799 | 1047 |
+| Macro avg | 0.9766 | 0.9708 | 0.9736 | 1047 |
+| Weighted avg | 0.9799 | 0.9799 | 0.9799 | 1047 |
 
 Interpretation:
 - Downstream utility is strong and clearly exceeds the prior 92.43% baseline.
 - This supports the practical usefulness of the improved StyleGAN snapshot for augmentation.
 
 **Final Selection for Research:**
-- **Chosen checkpoint: snapshot 000200 from run 00017 (gamma 8.0)**
-- Rationale: lowest measured FID, best KID, improved precision versus the gamma 2 baseline, and moderate SSIM.
-- Practical conclusion: the retrained model is the strongest StyleGAN baseline available for the cGAN comparison.
+- **Chosen checkpoint: snapshot 000240 from run 00018 (gamma 6.0, ADA target 0.65)**
+- Rationale: best measured FID/KID in this repository and improved precision versus prior baselines.
+- Practical conclusion: this is the strongest StyleGAN baseline available for the cGAN comparison, with low recall documented as a limitation.
 
 ### Optimization Attempt 2: Improved Precision/Recall (April 2, 2026 – Completed)
 
@@ -497,7 +517,7 @@ Initial results showed low precision/recall (0.096/0.0) despite good FID. The re
 - Keep the gamma 2 baseline in the table for comparison only
 
 **Usage for comparison study:**
-- Use `run 00017 / snapshot 000200 / gamma 8.0` as the primary StyleGAN2-ADA result when comparing against cGAN baselines under the same protocol.
+- Use `run 00018 / snapshot 000240 / gamma 6.0 / ADA target 0.65` as the primary StyleGAN2-ADA result when comparing against cGAN baselines under the same protocol.
 
 ## 9. Future Work
 
@@ -540,6 +560,6 @@ And cite StyleGAN2-ADA:
 
 ---
 
-**Last Updated**: April 2, 2026  
-**Status**: Training/evaluation complete; checkpoint selection finalized at kimg 200 for research baseline.  
+**Last Updated**: April 4, 2026  
+**Status**: Training/evaluation complete; checkpoint selection finalized at run 00018 snapshot 000240 (kimg 240).  
 **Contact**: For questions or reproducibility issues, please file an issue or contact the maintainer.
