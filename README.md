@@ -488,9 +488,50 @@ Interpretation:
 - Rationale: best measured FID/KID in this repository and improved precision versus prior baselines.
 - Practical conclusion: this is the strongest StyleGAN baseline available for the cGAN comparison, with low recall documented as a limitation.
 
+### Run 00018 Snapshot 000240 — Final Evaluation Summary (April 4–5, 2026)
+
+**Checkpoint Path:**
+- `training-runs/00018-pneumonia_256_conditional-cond-auto1-gamma6-kimg300-batch4-ada-target0.65/network-snapshot-000240.pkl`
+
+**Complete Metric Results:**
+
+| Metric | Value | Interpretation |
+|--------|-------|-----------------|
+| **FID (`fid50k_full`)** | 25.3038 | Excellent; major improvement over earlier runs |
+| **KID (`kid50k_full`)** | 0.02246 | Excellent; stable and low kernel distance |
+| **Precision (`pr50k3_full`)** | 0.4894 | Moderate; improved over gamma-2 baseline (0.2284) |
+| **Recall (`pr50k3_full`)** | 0.00765 | Very low; indicates limited mode coverage (documented limitation) |
+| **SSIM Normal** | 0.3121 ± 0.0483 | Moderate structural similarity |
+| **SSIM Pneumonia** | 0.3713 ± 0.0721 | Slightly higher than Normal; pneumonia features more recognizable |
+| **SSIM Overall** | 0.3417 ± 0.0681 | Moderate; consistent with improved visual quality |
+| **VGG16 Downstream Accuracy** | 97.99% | Strong utility for data augmentation; exceeds 92.43% prior baseline |
+
+**Training Configuration:**
+- Gamma: 6.0 (R1 regularization weight)
+- ADA target: 0.65 (augmentation probability target)
+- kimg: 300 (total training images in thousands)
+- Batch size: 4
+- Seed: 42
+- Snapshots: saved every 80 kimg (at 0, 80, 160, 240, 300)
+
+**Key Findings:**
+1. Snapshot 240 represents the best balance of FID, KID, and downstream utility discovered in this project.
+2. Very low recall (< 1%) is a significant limitation; generated distribution covers only ~0.76% of real diversity.
+3. Despite low recall, VGG16 downstream accuracy of 97.99% demonstrates practical value for augmentation tasks.
+4. Moderate SSIM scores (0.34 overall) indicate structural plausibility but room for further realism improvements.
+
+**Recommended Use:**
+- Primary checkpoint for StyleGAN2-ADA vs. cGAN comparison studies.
+- Suitable for data augmentation in downstream pneumonia classification tasks.
+- Not recommended for diversity-critical applications without further design exploration (e.g., investigating class imbalance effects).
+
 ### Optimization Attempt 2: Improved Precision/Recall (April 2, 2026 – Completed)
 
-Initial results showed low precision/recall (0.096/0.0) despite good FID. The retrained gamma-8 run now has stronger quantitative performance:
+**Note:** This section documents the gamma-8 run (00017) which previously served as an intermediate baseline. The final selected checkpoint is run 00018 snapshot 240 (gamma 6, ADA 0.65), which achieved superior metrics.
+
+**Run 00017 (Gamma 8) — Intermediate Baseline:**
+
+Initial results showed low precision/recall (0.096/0.0) despite good FID. The retrained gamma-8 run improved quantitative performance:
 
 **New hyperparameters:**
 - `--gamma=8.0` (increased from 2.0 for stronger R1 regularization → better manifold coverage)
@@ -512,9 +553,12 @@ Initial results showed low precision/recall (0.096/0.0) despite good FID. The re
 - VGG16 held-out real test accuracy 98.09%
 
 **Evaluation plan:**
-- Completed: SSIM and VGG16 on gamma-8 snapshot 200
+- Completed: FID/KID on gamma-8 snapshot 200 and 300
+- Completed: SSIM and VGG16 on gamma-6 snapshot 240 (final run 00018)
 - Remaining: Visual Turing test packet review and side-by-side cGAN table finalization
-- Keep the gamma 2 baseline in the table for comparison only
+
+**Final checkpoint selection:**
+- Run 00018 snapshot 240 (gamma 6, ADA target 0.65) supersedes the gamma-8 baseline and is now the primary StyleGAN2-ADA result.
 
 **Usage for comparison study:**
 - Use `run 00018 / snapshot 000240 / gamma 6.0 / ADA target 0.65` as the primary StyleGAN2-ADA result when comparing against cGAN baselines under the same protocol.
